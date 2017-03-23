@@ -5,28 +5,14 @@ const {app} = require("./../server.js");
 const {Todo} = require("./../models/todo.js");
 const {User} = require("./../models/user.js");
 
+const jwt = require("jsonwebtoken");
+
 const {ObjectID} = require("mongodb");
 
-const dummyTodos = [{
-  _id : new ObjectID(123),
-  text: "first todo"
-},{
-  _id : new ObjectID(456),
-  text: "second todo",
-  completed: "true",
-  completedAt: 333
-}];
+const {populateTodos,populateUsers,dummyUsers,dummyTodos} = require("./seed/seed.js");
 
-
-beforeEach((done)=>{
-  Todo.remove({}).then(()=>{
-    Todo.insertMany(dummyTodos).then(()=>{
-      done();
-    });
-
-  });
-
-});
+beforeEach(populateTodos);
+beforeEach(populateUsers);
 
 
 describe("Post /todos",()=>{
@@ -189,9 +175,72 @@ describe("PATCH /todos/:id",()=>{
       })
       .end(done);
   });
+});
+
+describe("GET /users/me",()=>{
+  it("should return user if authenticated",(done)=>{
+    request(app)
+      .get("/users/me")
+      .set("x-auth",dummyUsers[0].tokens[0].token)
+      .expect(200)
+      .expect((res)=>{
+        expect(res.body.email).toBe(dummyUsers[0].email);
+        expect(res.body._id).toBe(dummyUsers[0]._id.toHexString());
+      })
+      .end(done);
+  });
 
 
+  it("should return 401 if not authenticated",(done)=>{
+    request(app)
+      .get("/users/me")
+      .expect(401)
+      .end(done);
+  });
+});
 
+describe("POST /users",()=>{
+  it("should create a user",(done)=>{
+    var email = "123@fsdf.com";
+    var password = "fsdgfdsgfd";
+    request(app)
+      .post("/users")
+      .send({email,password})
+      .expect(200)
+      .expect((res)=>{
+        expect(res.headers["x-auth"]).toExist();
+        expect(res.body.email).toBe(email);
+        expect(res.body._id).toExist();
+      })
+      .end((err,res)=>{
+        if(err)
+          return done(err);
+        User.findOne({email}).then((user)=>{
+          expect(user).toExist();
+          expect(user.password).toNotBe(password);
+          done();
+        })
+      });
+  });
 
+  it("should return validation errors if request invalid",(done)=>{
+    var email = "132@fsd.com";
+    var password = "123";
+    request(app)
+      .post("/users")
+      .send({email,password})
+      .expect(400)
+      .end(done);
+  });
+
+  it("should not create user if email in use",(done)=>{
+     var email = dummyUsers[0].email;
+     var password = dummyUsers[0].password;
+     request(app)
+      .post("/users")
+      .send({email,password})
+      .expect(400)
+      .end(done);
+  })
 
 });
