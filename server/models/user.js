@@ -48,7 +48,7 @@ UserSchema.methods.toJSON = function (){
 UserSchema.methods.generateAuthToken = function (){
   var access = "auth";
   var user = this;
-  var token = jwt.sign({_id:user._id.toHexString(),access},"123abc").toString();
+  var token = jwt.sign({_id:user._id.toHexString(),access},process.env.JWT_SECRET).toString();
   user.tokens.push({access,token});
   return user.save().then(()=>{
     return token;
@@ -75,7 +75,7 @@ UserSchema.statics.findByToken = function (token){
   var decoded;
 
   try{
-    decoded = jwt.verify(token,"123abc");
+    decoded = jwt.verify(token,process.env.JWT_SECRET);
   }catch(e){
     return new Promise((resolve,reject)=>{
       reject("401 need authentication");
